@@ -128,7 +128,6 @@ impl KvStore {
         };
         store.rebuild_key_dir(first_open)?;
         Ok(store)
-        //todo 把磁盘上的内容反序列化到内存中(重建key_dir)
     }
     fn rebuild_key_dir(&mut self, first_open: bool) -> Result<(), io::Error> {
         if first_open {
@@ -146,7 +145,29 @@ impl KvStore {
             self.file.seek_read(&mut buf, 0)?;
             let meta_header = KvStoreMethHeader::load_from_bytes(&buf);
             let offset = 0;
-            while offset <= meta_header.len {}
+            //todo 把磁盘上内容反序列化到key_dir
+
+            while offset <= meta_header.len {
+                let mut buf = vec![0; 100];
+                let kv_entry = LogDiskKvEntry::load_from_bytes(&buf);
+                let (key, value) = (
+                    String::from_utf8(kv_entry.key)
+                        .ok()
+                        .unwrap_or("".to_string()),
+                    String::from_utf8(kv_entry.value)
+                        .ok()
+                        .unwrap_or("".to_string()),
+                );
+                self.mem_kv_table.insert(
+                    key,
+                    LogMemValue {
+                        value_size: kv_entry.value_size,
+                        value_pos: offset,
+                        time_stamp: 0,
+                        value,
+                    },
+                );
+            }
         }
         Ok(())
     }
@@ -179,6 +200,7 @@ struct LogDiskKvEntry {
     key: Vec<u8>,
     value: Vec<u8>,
 }
+
 impl LogDiskKvEntry {
     pub fn as_bytes(&self) -> Vec<u8> {
         //不需要类型标记
@@ -191,6 +213,16 @@ impl LogDiskKvEntry {
         bytes.append(&mut self.key.clone());
         bytes.append(&mut self.value.clone());
         bytes
+    }
+    pub fn load_from_bytes(buf: &Vec<u8>) -> Self {
+        LogDiskKvEntry {
+            time_stamp: 0,
+            key_size: 0,
+            value_size: 0,
+            cmd: Cmd::Set,
+            key: vec![],
+            value: vec![],
+        }
     }
 }
 #[derive(Debug)]
@@ -205,10 +237,11 @@ impl KvStoreMethHeader {
         bytes.append(&mut self.len.to_be_bytes().to_vec());
         bytes
     }
-    fn load_from_bytes(buf: &[u8]) -> Self {
-        let magic = u64::from_be_bytes(buf[0..8].to_vec().into_iter().collect() as [u8; 8]);
-        let len = u32::from_be_bytes(buf[8..].to_vec().into_iter().collect() as [u8; 4]);
-        KvStoreMethHeader { magic, len }
+    fn load_from_bytes(buf: &Vec<u8>) -> Self {
+        // //let b1: [u8; 8] = buf[0..8].to_vec().into_iter().as_slice() as [u8; 8];
+        // let magic = u64::from_be_bytes(b1);
+        // let len = u32::from_be_bytes(buf[8..].to_vec().into_iter().collect() as [u8; 4]);
+        KvStoreMethHeader { magic: 0, len: 0 }
     }
 }
 #[derive(Debug)]
