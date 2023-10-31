@@ -18,7 +18,7 @@ pub struct KvStore {
     mem_kv_table: HashMap<String, LogMemValue>,
     current_pos: u32,
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Cmd {
     Set,
     //Get,
@@ -56,8 +56,6 @@ impl KvStore {
             value: value.clone(),
             value_pos: 0,
         };
-
-        //写入 kv_dir
         self.mem_kv_table.insert(key, log_mem_value);
         Ok(())
     }
@@ -146,9 +144,9 @@ impl KvStore {
             let meta_header = KvStoreMethHeader::load_from_bytes(&buf);
             let offset = 0;
             //todo 把磁盘上内容反序列化到key_dir
-
             while offset <= meta_header.len {
                 let mut buf = vec![0; 100];
+
                 let kv_entry = LogDiskKvEntry::load_from_bytes(&buf);
                 let (key, value) = (
                     String::from_utf8(kv_entry.key)
@@ -158,15 +156,20 @@ impl KvStore {
                         .ok()
                         .unwrap_or("".to_string()),
                 );
-                self.mem_kv_table.insert(
-                    key,
-                    LogMemValue {
-                        value_size: kv_entry.value_size,
-                        value_pos: offset,
-                        time_stamp: 0,
-                        value,
-                    },
-                );
+                //写入 kv_dir
+                //根据命令类型 是set 还是rmv
+                //todo
+                if kv_entry.cmd == Cmd::Set {
+                    self.mem_kv_table.insert(
+                        key,
+                        LogMemValue {
+                            value_size: kv_entry.value_size,
+                            value_pos: offset,
+                            time_stamp: 0,
+                            value,
+                        },
+                    );
+                }
             }
         }
         Ok(())
